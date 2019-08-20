@@ -1,0 +1,315 @@
+% Fundemantals of System Biology Lecture Project
+% Hatice Büşra KONUK & Emre Taylan DUMAN
+
+%Our dataset is GSE5281 related to Alzheimer's diseases in different brain
+%regions.
+clear all; clc;
+data= geoseriesread('GSE5281_series_matrix.txt');  %this is our GSE dataset retrieved from GSE database.
+probe_gene= geosoftread('GPL570-55999.txt'); % This is related GPL file which includes Probe IDs or related information about genes.
+
+numeric_values= double(data.Data); % convert data to numeric data in order to use as matrix
+% numeric_data includes 161 columns
+
+% Some informations about study
+% Name of contributers and article title
+
+Article_outhers= data.Header.Series.contributor;
+Article_title= data.Header.Series.title;
+
+%Platform ID
+Platform= data.Header.Series.platform_id;
+
+%--------------------------------------------------------------------------
+
+% We select three brain region, they are enthorical cortex, hippocampus
+% and virtual cortex. We select reletaed samples like that:
+sample = numeric_values(:,[1:26 63:94 143:161]);
+%names of the samples, we can understand which samples are normal, which samples are cancer
+text= (data.Header.Samples.title)';
+
+ec = [1:13 75:84];
+hip = [14:26 85:94];
+vcx = [63:74 143:161];
+
+ec_dat = numeric_values(:,ec);
+hip_dat = numeric_values(:,hip);
+vcx_dat = numeric_values(:,vcx);
+
+%--------------------------------------------------------------------------
+
+% General PCA
+[coeff,score,latent] = pca(zscore(sample));
+
+coeff_max_h= coeff(:,[1 2]);
+T_h= score(:,[1 2]);
+V1_h= (T_h(:,1));
+V2_h= (T_h (:,2));
+L1_h= (coeff_max_h(:,1));
+L2_h= (coeff_max_h(:,2));
+
+labels = text([ec hip vcx]);
+plot(V1_h, V2_h,'.');
+xlim([0 0.2])
+ylim([0 0.2])
+title('PCA of Alzheimer')
+
+hold on
+plot(L1_h,L2_h,'o');
+gname(labels)
+% So we should perform PCA for each brain region seperately.
+
+%--------------------------------------------------------------------------
+
+% PCA analysis for entorhinal cortex (ec) samples to see outliers
+[coeff_ec,score_ec,latent_ec] = pca(zscore(ec_dat));
+coeff_max_ec= coeff_ec(:,[1 2]);
+T_h_ec= score(:,[1 2]);
+V1_h_ec = (T_h_ec(:,1));
+V2_h_ec = (T_h_ec (:,2));
+L1_h_ec = (coeff_max_ec(:,1));
+L2_h_ec = (coeff_max_ec(:,2));
+
+plot(L1_h_ec,L2_h_ec,'o');
+xlim([0 0.5])
+ylim([-0.5 0.5])
+gname(text(ec))
+
+ec_dat1 = ec_dat;
+ec_dat1(:,[3 4 7 12 15 20]) = [];
+% 3,4,7,12 deleted from control samples
+% 15 and 20 deleted from affected samples
+h_ec= ec_dat1(:,1:9);  % healthy samples
+d_ec= ec_dat1(:,10:17);  % disease samples
+%--------------------------------------------------------------------------
+
+% PCA analysis for hippocampus (hip) samples to see outliers
+[coeff_hip,score_hip,latent_hip] = pca(zscore(hip_dat));
+coeff_max_hip= coeff_hip(:,[1 2]);
+T_h_hip= score(:,[1 2]);
+V1_h_hip = (T_h_hip(:,1));
+V2_h_hip = (T_h_hip (:,2));
+L1_h_hip = (coeff_max_hip(:,1));
+L2_h_hip = (coeff_max_hip(:,2));
+
+plot(L1_h_hip,L2_h_hip,'o');
+xlim([0 0.5])
+ylim([-0.4 0.4])
+gname(text(hip))
+
+hip_dat1 = hip_dat;
+hip_dat1(:,[2 3 7 14 16])= [];
+
+% 2,3,7 deleted from control samples
+% 14 and 16 deleted from affected
+
+h_hip= hip_dat1(:,1:10);  % healthy samples
+d_hip= hip_dat1(:,11:18);  % disease samples
+%--------------------------------------------------------------------------
+
+% PCA analysis for vitual cortex (vcx) samples to see outliers
+[coeff_vcx,score_vcx,latent_vcx] = pca(zscore(vcx_dat));
+coeff_max_vcx= coeff_vcx(:,[1 2]);
+T_h_vcx= score(:,[1 2]);
+V1_h_vcx = (T_h_vcx(:,1));
+V2_h_vcx = (T_h_vcx (:,2));
+L1_h_vcx = (coeff_max_vcx(:,1));
+L2_h_vcx = (coeff_max_vcx(:,2));
+
+plot(L1_h_vcx,L2_h_vcx,'o');
+xlim([0.1 0.25])
+ylim([-0.3 0.3])
+gname(text(vcx))
+
+vcx_dat1 = vcx_dat;
+vcx_dat1(:,[4 5 11 13 15 16 18])= [];
+
+% 4,5,11 deleted from control samples
+% 13 and 15 16 18 deleted from affected
+
+h_vcx= vcx_dat1(:,1:9);  % healthy samples
+d_vcx= vcx_dat1(:,10:24);  % disease samples
+
+%--------------------------------------------------------------------------
+
+% t test for Entorhinal  cortex (EC) to understand the significantly changed genes
+% There are two conditions to compare using t-test healty (control) and
+% disease.
+h_ec= ec_dat1(:,1:9);  % healthy samples
+d_ec= ec_dat1(:,10:17);  % disease samples
+
+% cut of was selected as 0.01
+% 1. input is the first condition  2. input is the second condition  3. input is cut off.
+[h_EC ,pval_EC]= ttest2(h_ec', d_ec', 0.01);
+pval_EC=pval_EC';
+
+% number of significantly changed genes
+pval_index_ec= find(pval_EC<0.01); % indexes of p-values<0.01 related genes
+number_EC= length(find(pval_EC<0.01));  % 9736 genes are significanlty changed based on 0.01 cut off. (they are not unique because of the multiple probes)
+ 
+% Benjamini-Hochberg correction
+fdr_cutoff=0.01;
+[bh_h_EC, crit_p_EC, adj_p_EC] = fdr_bh(pval_EC, fdr_cutoff);
+
+adj_p_index_EC= find(adj_p_EC<0.01); % indexes of p-values<0.01 related genes
+number_adj_EC= length(find(adj_p_EC<0.01));  % 3118 genes are significanlty changed based on Benjamini-Hochberg.
+
+% Probe IDs and related gene names were obtained.
+ProbID_EC= probe_gene.Data(adj_p_index_EC,[1,2]);
+pval_EC_selected= num2cell(adj_p_EC(adj_p_index_EC));
+Probe_and_pval_EC= [ProbID_EC pval_EC_selected];
+ 
+% We select the unique genes. If a gene has multiple probes, the probes
+% which has minimum p-value (more significant) was selected for corresponding gene. 
+k_EC= Probe_and_pval_EC(:,2);
+U_Gene_EC= unique(Probe_and_pval_EC(:,2)); % we obtain 3093 unique genes. 
+
+U_Gene_EC =U_Gene_EC(2:end);
+UnigenePvalue_EC = cell(length(U_Gene_EC),2);
+for i = 1:length(U_Gene_EC)
+    k_EC = find(ismember(Probe_and_pval_EC(:,2), U_Gene_EC(i)));
+    UnigenePvalue_EC(i, 1) = U_Gene_EC(i);
+    UnigenePvalue_EC{i, 2} = min(cell2mat(Probe_and_pval_EC(k_EC,3)));
+end
+ 
+xlswrite('Benjamini-Hochberg_EC.xlsx',UnigenePvalue_EC);
+
+%--------------------------------------------------------------------------
+
+% t test for Hippocampus (HIP) to understand the significantly changed genes
+% There are two conditions to compare using t-test healty (control) and
+% disease.
+h_hip= hip_dat1(:,1:10);  % healthy samples
+d_hip= hip_dat1(:,11:18);  % disease samples
+
+% All steps were perfomed similarly, For this reason, we did not add
+% new explanations. 
+
+[h_HIP ,pval_HIP]= ttest2(h_hip', d_hip', 0.01);
+pval_HIP=pval_HIP';
+
+pval_index_hip= find(pval_HIP<0.01); % indexes of p-values<0.01 related genes
+number_HIP= length(find(pval_HIP<0.01));  % 11926 genes are significanlty changed based on 0.01 cut off. (they are not unique because of the multiple probes)
+ 
+% Benjamini-Hochberg correction
+fdr_cutoff=0.01;
+[bh_h_HIP, crit_p_HIP, adj_p_HIP] = fdr_bh(pval_HIP, fdr_cutoff);
+
+adj_p_index_HIP= find(adj_p_HIP<0.01); % indexes of p-values<0.01 related genes
+number_adj_HIP= length(find(adj_p_HIP<0.01));  % 6585 genes are significanlty changed based on Benjamini-Hochberg.
+
+% Probe IDs and related gene names were obtained.
+ProbID_HIP= probe_gene.Data(adj_p_index_HIP,[1,2]);
+pval_HIP_selected= num2cell(adj_p_HIP(adj_p_index_HIP));
+Probe_and_pval_HIP= [ProbID_HIP pval_HIP_selected];
+
+k_HIP= Probe_and_pval_HIP(:,2);
+U_Gene_HIP= unique(Probe_and_pval_HIP(:,2)); % we obtain 6472 unique genes. 
+
+U_Gene_HIP =U_Gene_HIP(2:end);
+UnigenePvalue_HIP = cell(length(U_Gene_HIP),2);
+for i = 1:length(U_Gene_HIP)
+    k_HIP = find(ismember(Probe_and_pval_HIP(:,2), U_Gene_HIP(i)));
+    UnigenePvalue_HIP(i, 1) = U_Gene_HIP(i);
+    UnigenePvalue_HIP{i, 2} = min(cell2mat(Probe_and_pval_HIP(k_HIP,3)));
+end
+ 
+xlswrite('Benjamini-Hochberg_HIP.xlsx',UnigenePvalue_HIP);
+
+%--------------------------------------------------------------------------
+
+% t test for Virtual cortex (VCX) to understand the significantly changed genes
+% There are two conditions to compare using t-test healty (control) and
+% disease.
+h_vcx= vcx_dat1(:,1:9);  % healthy samples
+d_vcx= vcx_dat1(:,10:24);  % disease samples
+
+% All steps were perfomed similarly, For this reason, we did not add
+% new explanations. 
+
+[h_VCX ,pval_VCX]= ttest2(h_vcx', d_vcx', 0.01);
+pval_VCX=pval_VCX';
+
+pval_index= find(pval_VCX<0.01); % indexes of p-values<0.01 related genes
+number_VCX= length(find(pval_VCX<0.01));  % 6043 genes are significanlty changed based on 0.01 cut off. (they are not unique because of the multiple probes)
+ 
+% Benjamini-Hochberg correction
+fdr_cutoff=0.01;
+[bh_h_VCX, crit_p_VCX, adj_p_VCX] = fdr_bh(pval_VCX, fdr_cutoff);
+
+adj_p_index_VCX= find(adj_p_VCX<0.01); % indexes of p-values<0.01 related genes
+number_adj_VCX= length(find(adj_p_VCX<0.01));  % 895 genes are significanlty changed based on Benjamini-Hochberg.
+
+% Probe IDs and related gene names were obtained.
+ProbID_VCX= probe_gene.Data(adj_p_index_VCX,[1,2]);
+pval_VCX_selected= num2cell(adj_p_VCX(adj_p_index_VCX));
+Probe_and_pval_VCX= [ProbID_VCX pval_VCX_selected];
+ 
+k_VCX= Probe_and_pval_VCX(:,2);
+U_Gene_VCX= unique(Probe_and_pval_VCX(:,2)); % we obtain 890 unique genes. 
+
+U_Gene_VCX =U_Gene_VCX(2:end);
+UnigenePvalue_VCX = cell(length(U_Gene_VCX),2);
+for i = 1:length(U_Gene_VCX)
+    k_VCX = find(ismember(Probe_and_pval_VCX(:,2), U_Gene_VCX(i)));
+    UnigenePvalue_VCX(i, 1) = U_Gene_VCX(i);
+    UnigenePvalue_VCX{i, 2} = min(cell2mat(Probe_and_pval_VCX(k_VCX,3)));
+end
+ 
+xlswrite('Benjamini-Hochberg_VCX.xlsx',UnigenePvalue_VCX);
+
+%--------------------------------------------------------------------------
+xlswrite('Ec.xlsx',d_ec);
+xlswrite('HIP.xlsx',d_hip);
+xlswrite('VCX.xlsx',d_vcx);
+xlswrite('EC_p.xlsx',adj_p_EC);
+xlswrite('HIP_p.xlsx',adj_p_HIP);
+xlswrite('VCX_p.xlsx',adj_p_VCX);
+% bunları bir araya getirerek most significant 6 gen seçildi.
+
+%--------------------------------------------------------------------------
+% GGM based network inference for each brain region
+
+clear all; clc;
+EC= xlsread('6_signif_EC.xlsx');
+HIP= xlsread('6_signif_HIP.xlsx');
+VCX= xlsread('6_signif_VCX.xlsx');
+
+% EC,HIP ve VCX değişkenlerindeki datalar ile pearson ve GGM yapılacaktır.
+
+% For Entorhinal cortex, select 6 most significantly affected genes according to
+% their p-values.
+
+%Firstly we calculate pearson correlation
+[R,pval] = corr(data);        % corr function use 'Pearson' as default
+
+% Secondly, we perform GGM
+% For this reason, we calculate inverse of C matrix
+W = inv(R);                         
+
+% We calculate G values for each value in the matrix using equation
+% explained in HW file.
+G = zeros(9);                   % Empty matrix to store ggm values
+for i=1:9;
+ for j= 1:length(G);
+     G(i,j) = (-W(i,j))/(sqrt(W(i,i)*W(j,j)));
+ end
+end
+
+
+%--------------------------------------------------------------------------
+
+% For Hippocampus, select 6 most significantly affected genes according to
+% their p-values.
+
+
+%--------------------------------------------------------------------------
+
+% For Virtual cortex, select 6 most significantly affected genes according to
+% their p-values.
+
+
+%--------------------------------------------------------------------------
+% KEtPathwayMiner için gerekli olan data
+xlswrite('EC_subnetwork.xlsx',UnigenePvalue_EC);
+xlswrite('HIP_subnetwork.xlsx',UnigenePvalue_HIP);
+xlswrite('VCX_subnetwork.xlsx',UnigenePvalue_VCX);
