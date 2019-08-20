@@ -1,0 +1,71 @@
+"""
+Created on Sun Nov  4 20:26:31 2018
+
+@author: emretaylan
+"""
+from collections import defaultdict
+import pandas as pd
+import numpy as np
+from scipy.stats import ttest_ind
+import matplotlib.pyplot as plt
+
+data = pd.read_csv('masterlist.txt', delimiter="\t")        #data = pd.read_csv('masterlist.txt', delimiter="\t",index_col=0) indexi iptal edip uniprot index oldu
+data=data.drop(data.columns[[10,11,12,13,14,15,16,17]], axis=1)
+
+"""data.dropna() for deleting all NAN cells"""
+
+attr= list(data) 
+d = {}
+for i in attr:
+    d[i]=data[i].tolist()
+
+high_exp = dict.fromkeys(attr, 0)
+high_exp = defaultdict(list) 
+
+#data3=data.select_dtypes(include='float') 
+data_tomean = data.drop(data.columns[[0,8,9]],axis=1)
+data_tomean = data_tomean.convert_objects(convert_numeric=True)
+data_index = data.drop(data.columns[[1,2,3,4,5,6,7]],axis=1)
+
+data_tomean['mean'] = data_tomean.mean(axis=1)
+data_tomean['std'] = data_tomean.std(axis=1)
+result=pd.concat([data_index, data_tomean], axis=1)
+
+max_mean = result.loc[result['mean'].idxmax()]
+max_std = result.loc[result['std'].idxmax()]
+min_mean = result.loc[result['mean'].idxmin()]
+min_std = result.loc[result['std'].idxmin()]
+
+
+t_test_res=ttest_ind(result.dropna()['kidney'], result.dropna()['lung'])
+
+for key, value in d.items():
+    if key == 'Description':
+        continue
+    elif key == 'Gene':
+        continue
+    elif key =='UniprotID':
+        continue
+    else:
+        k='Gene_'+key
+        l='UniprotID_'+key
+        for p in value:
+            if float(p) >= 5.0:
+                high_exp[key].append(p)
+                high_exp[k].append(d['Gene'][value.index(p)])
+                high_exp[l].append(d['UniprotID'][value.index(p)]) 
+            else:
+                continue
+
+pd.DataFrame.from_dict(data=high_exp, orient='index').to_csv('high_exp.csv', header=False)
+
+fig, ax = plt.subplots(7,1,figsize=(5, 30))
+ax[0].hist(result['lung'].dropna()); ax[0].set_title('Expression Lung')
+ax[1].hist(result['adrenal gland'].dropna()); ax[1].set_title('Expression Adrenal Gland')
+ax[2].hist(result['bone'].dropna()); ax[2].set_title('Expression Bone')
+ax[3].hist(result['brain'].dropna()); ax[3].set_title('Expression Brain')
+ax[4].hist(result['kidney'].dropna()); ax[4].set_title('Expression Kidney')
+ax[5].hist(result['liver'].dropna()); ax[5].set_title('Expression Liver')
+ax[6].hist(result['lymph node'].dropna()); ax[6].set_title('Expression Lymph Node')
+
+plt.show()
