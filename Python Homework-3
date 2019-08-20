@@ -1,0 +1,51 @@
+"""
+Created on Sun Oct 21 20:44:11 2018
+BSB501 Spring 2018 Emre Taylan Duman
+@author: Kylo
+Part I
+"""
+f = open("pBR322.txt", "r", encoding="utf-8")
+Plasmid_pBR322 = f.read()
+Plasmid_pBR322 = Plasmid_pBR322.replace(">pBR322", "")
+Plasmid_pBR322 = Plasmid_pBR322.replace("\n", "")
+Plasmid_pBR322 = Plasmid_pBR322.upper() 
+f.close()
+Plasmid2x=(Plasmid_pBR322 + Plasmid_pBR322) #Simulated circular plasmid sequence (Only for EcoRI)
+
+#Enzymes and cutting sites
+Enzymes = dict(AatII= "GACGTC", AseI= "ATTAAT", BamHI= "GGATCC", ClaI= "ATCGAT", EagI= "CGGCCG", EcoRI="GAATTC", EcoRV="GATATC", HindIII="AAGCTT", MscI="TGGCCA", NdeI="CATATG", NheI="GCTAGC", NruI="TCGCGA", PstI="CTGCAG", PvuII="CAGCTG", SalI="GTCGAC")
+enzymeNames = list(Enzymes.keys())
+cutLoc = dict(AatII= 4, AseI= 1, BamHI= 0, ClaI= 1,EagI= 0,EcoRI= 0,EcoRV= 2,HindIII= 0,MscI= 2,NdeI= 1,NheI= 0,NruI= 2,PstI= 4,PvuII= 2,SalI= 0)
+cutSite = []; 
+f1 = [];
+f2= []; 
+f3= [];
+m=0; j=1; k=1 #some starting points.
+
+for i in Enzymes:
+   if i == 'EcoRI':
+       cutSite.append(Plasmid2x.find(Enzymes[i]) + cutLoc[i])
+   else:
+       cutSite.append(Plasmid_pBR322.find(Enzymes[i]) + cutLoc[i])
+       
+while m <= 14:    
+   while j<=14:
+       f1.append(abs(cutSite[m]-cutSite[j]))
+       f2.append(len(Plasmid_pBR322) - f1[k-1])
+       f3.append([enzymeNames[m],enzymeNames[j]])
+        
+       j=j+1
+       k=k+1
+   m=m+1
+   j=m+1       
+
+results = open("results.txt", 'w')
+a=0
+results.write("Emre Taylan Duman/ partI results / \n\nindex \t Enzyme 1 \t Enzyme 2 \t Fragment 1 \t Fragment 2 \n\n")
+
+while a<=104:
+    
+    results.write( str(a)+  "\t\t" + f3[a][0] + "\t\t" + f3[a][1] + "\t\t" + str(f1[a]) + "\t\t" + str(f2[a]) +  "\n")
+    a = a+1
+
+results.close()
