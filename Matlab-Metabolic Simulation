@@ -1,0 +1,167 @@
+clc
+clear all;
+changeCobraSolver ('gurobi', 'all');
+model_hw5=readCbModel('iAF1260.xml'); %reading iAF1260 model
+expression_data = xlsread('PortnoyData2.xlsx');
+
+aerobic_model = model_hw5;
+anaerobic_model = model_hw5;
+
+% Integrating constraints
+
+[~,expression_Aerobic.gene] = xlsread('PortnoyData2.xlsx','B2:B10113');     % Taking gene names
+[~,expression_Anaerobic.gene] = xlsread('PortnoyData2.xlsx','B2:B10113');   % Taking gene names
+
+Aerobic_values=xlsread('PortnoyData2.xlsx','D2:F10113');                    % Taking aerobic expression values.
+Aerobic_values=mean(Aerobic_values,2);
+
+Anaerobic_values=xlsread('PortnoyData2.xlsx','G2:I10113');                  % Taking anaerobic expression values.
+Anaerobic_values=mean(Anaerobic_values,2);
+
+treshold = mean(mean(xlsread('PortnoyData2.xlsx')));                      
+
+aerobic_model.lb(849) = -9.02;                                               %Aerobic glucose uptake
+aerobic_model.ub(849) = -9.02;
+aerobic_model.lb(933) = -16.49;                                              % Oxygen uptake rate
+aerobic_model.ub(933) = -16.49;
+aerobic_model.ub(375) = -3.15;                                               % Maintenance ATP values incorporated from previous hw
+aerobic_model.lb(375) = -3.15;
+
+anaerobic_model.ub(375) = -3.15;                                             % Maintenance ATP values
+anaerobic_model.lb(375) = -3.15;
+anaerobic_model.lb(849) = -17.3;                                             % Anaerobic glucose uptake
+anaerobic_model.ub(849) = -17.3;
+anaerobic_model.ub(1114) = 9999;                                            % Fumarate reductase reaction 1 activated
+anaerobic_model.ub(1115) = 9999;                                            % Fumarate reductase reaction 2 activated
+anaerobic_model.ub(1859) = 9999;                                            % 1_pyrroline_5_carboxylate_dehydrogenase activated
+anaerobic_model.ub(1909) = 9999;                                            % pyruvate_formate_lyase activated
+anaerobic_model.lb(933) = 0;                                                % Oxygen uptake rate
+anaerobic_model.ub(933) = 0;
+
+expression_Aerobic.value = Aerobic_values;
+expression_Anaerobic.value = Anaerobic_values;
+
+[expressionRxns_aero,parsedGPR_aero] = mapExpressionToReactions(aerobic_model,expression_Aerobic);
+[expressionRxns_anaero,parsedGPR_anaero] = mapExpressionToReactions(anaerobic_model,expression_Anaerobic);
+
+gimmeModel_aero = GIMME(aerobic_model, expressionRxns_aero, treshold,0.5);
+gimmeModel_anaero = GIMME(anaerobic_model, expressionRxns_anaero, treshold,0.5);
+
+%----------------------------------------------------------------------------------------------------------
+
+gurobi_aerobic.A = sparse(aerobic_model.S);                                  %To make format as sparse
+gurobi_aerobic.obj = -(aerobic_model.c);
+gurobi_aerobic.rhs = aerobic_model.b;
+gurobi_aerobic.lb = aerobic_model.lb;
+gurobi_aerobic.ub = aerobic_model.ub;
+gurobi_aerobic.sense = repmat('=',length(aerobic_model.b),1);
+
+solved1 = gurobi(gurobi_aerobic);                                            % Aerobic model simulation
+
+
+gurobi_anaerobic.A = sparse(anaerobic_model.S);                              %To make format as sparse
+gurobi_anaerobic.obj = -(anaerobic_model.c);
+gurobi_anaerobic.rhs = anaerobic_model.b;
+gurobi_anaerobic.lb = anaerobic_model.lb;
+gurobi_anaerobic.ub = anaerobic_model.ub;
+gurobi_anaerobic.sense = repmat('=',length(anaerobic_model.b),1);
+
+solved2 = gurobi(gurobi_anaerobic);                                            % Aerobic model simulation
+
+gurobi_aerobic_trans.A = sparse(gimmeModel_aero.S);                            %To make format as sparse
+gurobi_aerobic_trans.obj = -(gimmeModel_aero.c);
+gurobi_aerobic_trans.rhs = gimmeModel_aero.b;
+gurobi_aerobic_trans.lb = gimmeModel_aero.lb;
+gurobi_aerobic_trans.ub = gimmeModel_aero.ub;
+gurobi_aerobic_trans.sense = repmat('=',length(gimmeModel_aero.b),1);
+
+solved3 = gurobi(gurobi_aerobic_trans);                                            % Aerobic model simulation
+
+gurobi_anaerobic_trans.A = sparse(gimmeModel_anaero.S);                            %To make format as sparse
+gurobi_anaerobic_trans.obj = -(gimmeModel_anaero.c);
+gurobi_anaerobic_trans.rhs = gimmeModel_anaero.b;
+gurobi_anaerobic_trans.lb = gimmeModel_anaero.lb;
+gurobi_anaerobic_trans.ub = gimmeModel_anaero.ub;
+gurobi_anaerobic_trans.sense = repmat('=',length(gimmeModel_anaero.b),1);
+
+solved4 = gurobi(gurobi_anaerobic_trans);                                         % Aerobic model simulation
+
+%----------------------------------------------------------------------------------------------------------
+% Simulations made once more to see second optimization results. Results
+% generated from solved1 to solved4 as Aerobic normal model, anaerobic
+% normal model, aerobic gimme model and anaerobic gimme model. Results
+% were given as obj valued by -2*(first simulation results). And quadratic
+% solving method used for calculating minimization of the enzyme usage.
+
+enzyme_min1.A = sparse(aerobic_model.S);
+enzyme_min1.obj = -2* solved1.x;
+enzyme_min1.rhs = aerobic_model.b;
+enzyme_min1.lb = aerobic_model.lb;
+enzyme_min1.ub = aerobic_model.ub;
+enzyme_min1.sense = repmat('=',length(aerobic_model.b),1);
+
+solved1_enz_min = gurobi(enzyme_min1);
+
+enzyme_min2.A = sparse(anaerobic_model.S);
+enzyme_min2.obj = -2* solved2.x;
+enzyme_min2.rhs = anaerobic_model.b;
+enzyme_min2.lb = anaerobic_model.lb;
+enzyme_min2.ub = anaerobic_model.ub;
+enzyme_min2.sense = repmat('=',length(anaerobic_model.b),1);
+
+solved2_enz_min = gurobi(enzyme_min2);
+
+
+enzyme_min3.A = sparse(gimmeModel_aero.S);
+enzyme_min3.obj = -2* solved3.x;
+enzyme_min3.rhs = gimmeModel_aero.b;
+enzyme_min3.lb = gimmeModel_aero.lb;
+enzyme_min3.ub = gimmeModel_aero.ub;
+enzyme_min3.sense = repmat('=',length(gimmeModel_aero.b),1);
+
+solved3_enz_min = gurobi(enzyme_min3);
+
+
+enzyme_min4.A = sparse(gimmeModel_anaero.S);
+enzyme_min4.obj = -2* solved4.x;
+enzyme_min4.rhs = gimmeModel_anaero.b;
+enzyme_min4.lb = gimmeModel_anaero.lb;
+enzyme_min4.ub = gimmeModel_anaero.ub;
+enzyme_min4.sense = repmat('=',length(gimmeModel_anaero.b),1);
+
+solved4_enz_min = gurobi(enzyme_min4);
+
+%----------------------------------------------------------------------------------------------------------
+
+model_lactate_anaero = model_hw5;   % New anaerobic model constructed for lactate boundary condition
+
+model_lactate_anaero.ub(375) = -3.15;                                             % Maintenance ATP values
+model_lactate_anaero.lb(375) = -3.15;
+model_lactate_anaero.lb(849) = -17.3;                                             % Anaerobic glucose uptake
+model_lactate_anaero.ub(849) = -17.3;
+model_lactate_anaero.ub(1114) = 9999;                                            % Fumarate reductase reaction 1 activated
+model_lactate_anaero.ub(1115) = 9999;                                            % Fumarate reductase reaction 2 activated
+model_lactate_anaero.ub(1859) = 9999;                                            % 1_pyrroline_5_carboxylate_dehydrogenase activated
+model_lactate_anaero.ub(1909) = 9999;                                            % pyruvate_formate_lyase activated
+model_lactate_anaero.lb(933) = 0;                                                % Oxygen uptake rate
+model_lactate_anaero.ub(933) = 0;
+model_lactate_anaero.lb(893) = 0.95;                                              % Lactate secretion rate
+model_lactate_anaero.ub(893) = 0.95;
+
+[expressionRxns_anaero,parsedGPR_anaero] = mapExpressionToReactions(model_lactate_anaero,expression_Anaerobic);
+gimmeModel_lactate = GIMME(model_lactate_anaero, expressionRxns_aero, treshold,0.5);
+
+gimme_lac.A = sparse(gimmeModel_lactate.S);                                  %To make format as sparse
+gimme_lac.obj = -(gimmeModel_lactate.c);
+gimme_lac.rhs = gimmeModel_lactate.b;
+gimme_lac.lb = gimmeModel_lactate.lb;
+gimme_lac.ub = gimmeModel_lactate.ub;
+gimme_lac.sense = repmat('=',length(gimmeModel_lactate.b),1);
+
+solved5 = gurobi(gimme_lac);                                            % Aerobic model simulation
+
+%----------------------------------------------------------------------------------------------------------
+
+deletions = {'b1136', 'b1276', 'b1611', 'b1612', 'b3236', 'b0116', 'b0118', 'b1479'};
+target = 'Acetate exchange';
+[type, maxGrowth, maxProd, minProd] = analyzeOptKnock(gimmeModel_anaero, deletions, target);
