@@ -1,0 +1,114 @@
+changeCobraSolver ('gurobi', 'all');
+
+model  = readCbModel('iEK1011.xml');
+
+control_values = xlsread('finaldata_GIMME_control.xlsx','B1:B4342');
+[~,expression_control.gene] = xlsread('finaldata_GIMME_control.xlsx','A1:A4342');
+expression_control.value = control_values;
+
+
+drug_values = xlsread('finaldata_GIMME_drug.xlsx','B1:B4342');
+[~,expression_drug.gene] = xlsread('finaldata_GIMME_drug.xlsx','A1:A4342');
+expression_drug.value = drug_values; 
+
+threshold = 9.1579;
+
+control_model = model;
+drug_model = model;
+
+[expressionRxns_control, parsedGPR_control] = mapExpressionToReactions(control_model, expression_control);
+[expressionRxns_drug, parsedGPR_drug] = mapExpressionToReactions(drug_model, expression_drug);
+
+gimmeModel_control = GIMME(control_model, expressionRxns_control, threshold, 0.5);
+gimmeModel_drug = GIMME(drug_model, expressionRxns_drug, threshold, 0.1);
+
+%Control
+
+gurobi_control.A = sparse(control_model.S);
+gurobi_control.obj = -(control_model.c);
+gurobi_control.rhs = control_model.b;
+gurobi_control.lb = control_model.lb;
+gurobi_control.ub = control_model.ub;
+gurobi_control.sense = repmat('=',length(control_model.b),1);
+
+solved_control = gurobi(gurobi_control);
+
+%Drug
+
+gurobi_drug.A = sparse(drug_model.S);
+gurobi_drug.obj = -(drug_model.c);
+gurobi_drug.rhs = drug_model.b;
+gurobi_drug.lb = drug_model.lb;
+gurobi_drug.ub = drug_model.ub;
+gurobi_drug.sense = repmat('=',length(drug_model.b),1);
+
+solved_drug = gurobi(gurobi_drug);   
+
+
+%Control GIMME
+
+gurobi_control_reduced.A = sparse(gimmeModel_control.S);
+gurobi_control_reduced.obj = -(gimmeModel_control.c);
+gurobi_control_reduced.rhs = gimmeModel_control.b;
+gurobi_control_reduced.lb = gimmeModel_control.lb;
+gurobi_control_reduced.ub = gimmeModel_control.ub;
+gurobi_control_reduced.sense = repmat('=',length(gimmeModel_control.b),1);
+
+solved_control_reduced = gurobi(gurobi_control_reduced);
+
+%Drug GIMME
+
+gurobi_drug_reduced.A = sparse(gimmeModel_drug.S);
+gurobi_drug_reduced.obj = -(gimmeModel_drug.c);
+gurobi_drug_reduced.rhs = gimmeModel_drug.b;
+gurobi_drug_reduced.lb = gimmeModel_drug.lb;
+gurobi_drug_reduced.ub = gimmeModel_drug.ub;
+gurobi_drug_reduced.sense = repmat('=',length(gimmeModel_drug.b),1);
+
+solved_drug_reduced = gurobi(gurobi_drug_reduced);
+
+%Control enzyme minimization 1
+control_eml.Q = eye(length(solved_control_reduced.x));
+
+gimmeModel_control.lb(653) = 0.0357;
+gimmeModel_control.ub(653) = 0.0357;
+
+control_em1.A = sparse(gimmeModel_control.S);
+control_em1.obj = -2* solved_control_reduced.x;
+control_em1.rhs = gimmeModel_control.b;
+control_em1.lb = gimmeModel_control.lb;
+control_em1.ub = gimmeModel_control.ub;
+control_em1.sense = repmat('=',length(gimmeModel_control.b),1);
+
+solved_control_em1 = gurobi(control_em1);
+
+%Drug enzyme minimization 1
+drug_eml.Q = eye(length(solved_drug_reduced.x));
+
+gimmeModel_drug.lb(640) = 0.0328;
+gimmeModel_drug.ub(640) = 0.0328;
+
+drug_em1.A = sparse(gimmeModel_drug.S);
+drug_em1.obj = -2* solved_drug_reduced.x;
+drug_em1.rhs = gimmeModel_drug.b;
+drug_em1.lb = gimmeModel_drug.lb;
+drug_em1.ub = gimmeModel_drug.ub;
+drug_em1.sense = repmat('=',length(gimmeModel_drug.b),1);
+
+solved_drug_em1 = gurobi(drug_em1);
+
+
+intersects = intersect(gimmeModel_control.rxns,gimmeModel_drug.rxns); % Intersection of the reactions
+for i = 1: length(intersects)
+    locations_int_drug(i) = find(strcmp(gimmeModel_drug,intersects(i)));
+end
+
+for i = 1: length(intersects)
+    locations_int_control(i) = find(strcmp(gimmeModel_c,intersects));
+end
+
+%SingleGeneDeletion
+
+[grRatio, grRateKO, grRateWT, hasEffect, delRxns, fluxSolution] = singleGeneDeletion(control_model);
+
+lethal_genes = control_model.genes(find(grRateKO < 0.005));
