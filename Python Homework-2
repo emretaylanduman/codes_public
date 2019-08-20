@@ -1,0 +1,95 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Nov  3 22:41:31 2018
+@author: emretaylan
+"""
+import numpy as np
+import pandas as pd
+from scipy import stats
+import matplotlib.pyplot as plt
+
+f = open("data.txt", "r", encoding="utf-8")
+data = f.read()
+fi = data.splitlines()
+
+
+geneExp_a = [] ; geneExp_b = []; geneExp_c = []; geneSymb = []; mit = []; mit_loc = [] ;nonMit_loc = []
+exp_mitA =[]; exp_mitB = []; exp_mitC = []; exp_nonA = []; exp_nonB = []; exp_nonC=[]; mit_Genes = []; Nmit_Genes = []
+
+
+list_attr = ('geneExp_a','geneExp_b','geneExp_c','geneSymb','mit')
+
+for i in range(1,len(fi)):
+    geneSymb.append(fi[i].split('\t')[1])
+    mit.append(fi[i].split('\t')[2])
+    geneExp_a.append(float(fi[i].split('\t')[3]))
+    geneExp_b.append(float(fi[i].split('\t')[4]))
+    geneExp_c.append(float(fi[i].split('\t')[5]))
+
+df= pd.DataFrame({'Gene': geneSymb, 'Location':mit,'ExpA': geneExp_a, 'ExpB': geneExp_b, 'ExpC':geneExp_c})
+
+for i in range(len(mit)):
+    if mit[i] == 'NotMitochondrial':
+        nonMit_loc.append(i)
+        exp_nonA.append(geneExp_a[i])
+        exp_nonB.append(geneExp_b[i])
+        exp_nonC.append(geneExp_c[i])
+        Nmit_Genes.append(geneSymb[i])
+        continue
+    else:
+        mit_loc.append(i)
+        exp_mitA.append(geneExp_a[i])
+        exp_mitB.append(geneExp_b[i])
+        exp_mitC.append(geneExp_c[i])
+        mit_Genes.append(geneSymb[i])
+        
+
+mean_NmitA = np.mean(exp_nonA)
+mean_NmitB = np.mean(exp_nonB)
+mean_NmitC = np.mean(exp_nonC)
+var_NmitA = np.var(exp_nonA)
+var_NmitB = np.var(exp_nonB)
+var_NmitC = np.var(exp_nonC)
+
+mean_mitA = np.mean(exp_mitA)
+mean_mitB = np.mean(exp_mitB)
+mean_mitC = np.mean(exp_mitC)
+var_mitA = np.var(exp_mitA)
+var_mitB = np.var(exp_mitB)
+var_mitC = np.var(exp_mitC)
+
+t_test1 = stats.ttest_ind(exp_mitA,exp_nonA)
+t_test2 = stats.ttest_ind(exp_mitB,exp_nonB)
+t_test3 = stats.ttest_ind(exp_mitC,exp_nonC)
+
+
+df_mit=pd.DataFrame({'Mit_A': exp_mitA,'Mit_B': exp_mitB, 'Mit_C': exp_mitC})
+drNmit=pd.DataFrame({'Mit_A': exp_nonA,'Mit_B': exp_nonB, 'Mit_C': exp_nonC})
+
+fig=plt.figure()
+ax1=fig.add_subplot(3,3,1)
+ax1.set_title('Mit_A',fontsize=8)
+ax2=fig.add_subplot(3,3,2)
+ax2.set_title('Mit_B',fontsize=8)
+ax3=fig.add_subplot(3,3,3)
+ax3.set_title('Mit_C',fontsize=8)
+ax4=fig.add_subplot(3,3,4)
+ax4.set_title('Non_A',fontsize=8)
+ax5=fig.add_subplot(3,3,5)
+ax5.set_title('Non_B',fontsize=8)
+ax6=fig.add_subplot(3,3,6)
+ax6.set_title('Non_C',fontsize=8)
+
+df_mit['Mit_A'].hist(color='k', alpha=0.5, bins=50, ax=ax1)
+
+df_mit['Mit_B'].hist(color='r', alpha=0.5, bins=50, ax=ax2)
+
+df_mit['Mit_C'].hist(color='y', alpha=0.5, bins=50, ax=ax3)
+
+drNmit['Mit_A'].hist(color='b', alpha=0.5, bins=50, ax=ax4)
+
+drNmit['Mit_B'].hist(color='m', alpha=0.5, bins=50, ax=ax5)
+
+drNmit['Mit_C'].hist(color='b', alpha=0.5, bins=50, ax=ax6)
+
+np.savetxt(r'np.txt', df.values, fmt='%d')
