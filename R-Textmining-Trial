@@ -1,0 +1,36 @@
+require(XML)
+require(RCurl)
+require(readr)
+setwd("C:/Users/Kylo/Desktop/textmining/")
+for (r in 72:100){
+  Sys.sleep(10)
+  isim<- paste("page",r,".txt",sep = "")
+  if (r==1) {
+    dataurl<-'https://scholar.google.com.tr/scholar?hl=tr&as_sdt=0%2C5&q=lactose&btnG='
+    sdata<-getURL(dataurl)
+  } else {
+    sayfe<- r*10-10
+    dataurl<-paste("https://scholar.google.com.tr/scholar?start=",sayfe,"&q=lactose&hl=tr&as_sdt=0,5",sep = "")
+    sdata<-getURL(dataurl)
+  }
+  write.table(sdata,isim,sep = "\t",quote = F)
+}
+thematrix<- matrix(ncol = 1,nrow = 1000)
+hh<-0
+for (x in 1:60) {
+  sayfe<- x*10
+  line<- paste("C:/Users/Kylo/Desktop/textmining/page",x,".txt",sep = "")
+  sdatas<-read_file(line)
+  z<- sayfe
+  
+  for (h in 1:10) {
+    z<-z-1
+    hh<-hh+1  
+    f<-gsub('^.*class=\"gs_rs\\s*|\\s*<div.*$', '', sdatas)
+    ohbe<- paste("data-rp=\"",z,"\">.*",sep = "")
+    sdatas<-sub(ohbe, '', sdatas)
+    thematrix[hh,1]<- f
+    
+    
+  }
+}
